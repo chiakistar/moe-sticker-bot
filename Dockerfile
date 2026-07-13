@@ -15,8 +15,8 @@ COPY tools/msb_emoji.py /usr/local/bin/msb_emoji.py
 COPY tools/msb_rlottie.py /usr/local/bin/msb_rlottie.py
 COPY tools/msb_kakao_decrypt.py /usr/local/bin/msb_kakao_decrypt.py
 
-ENV TERM linux
-ENV DEBIAN_FRONTEND noninteractive
+ENV TERM="linux"
+ENV DEBIAN_FRONTEND="noninteractive"
 ENV PIP_BREAK_SYSTEM_PACKAGES=1
 
 RUN apt-get update -yq && \
@@ -30,4 +30,4 @@ RUN apt-get update -yq && \
 RUN PIP_BREAK_SYSTEM_PACKAGES=1 /usr/bin/pip3 install emoji rlottie-python Pillow
 COPY deployments/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
-ENTRYPOINT ["/entrypoint.sh"]
+CMD ["/entrypoint.sh"]
