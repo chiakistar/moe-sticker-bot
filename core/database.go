@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"strings"
 
-	"github.com/go-sql-driver/mysql"
+	_ "modernc.org/sqlite"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -61,91 +61,88 @@ var db *sql.DB
 
 const DB_VER = "2"
 
-func initDB(dbname string) error {
-	addr := msbconf.DbAddr
-	user := msbconf.DbUser
-	pass := msbconf.DbPass
-	params := make(map[string]string)
-	params["autocommit"] = "1"
-	dsn := &mysql.Config{
-		User:                 user,
-		Passwd:               pass,
-		Net:                  "tcp",
-		Addr:                 addr,
-		AllowNativePasswords: true,
-		Params:               params,
-	}
-	db, _ = sql.Open("mysql", dsn.FormatDSN())
+func initDB(dbFile string) error {
+    var err error
 
-	err := verifyDB(dsn, dbname)
-	if err != nil {
-		return err
-	}
+    db, err = sql.Open("sqlite", dbFile)
+    if err != nil {
+        return err
+    }
 
-	db.Close()
-	dsn.DBName = dbname
-	db, _ = sql.Open("mysql", dsn.FormatDSN())
-	log.Debugln("DB DSN:", dsn.FormatDSN())
+    if err = verifyDB(); err != nil {
+        return err
+    }
 
-	var dbVer string
-	err = db.QueryRow("SELECT value FROM properties WHERE name=?", "DB_VER").Scan(&dbVer)
-	if err != nil {
-		log.Errorln("Error quering dbVer, database corrupt? :", err)
-		return err
-	}
+    var dbVer string
+    err = db.QueryRow("SELECT value FROM properties WHERE name=?", "DB_VER").Scan(&dbVer)
+    if err != nil {
+        log.Errorln("Database corrupt?", err)
+        return err
+    }
 
-	log.Infoln("Queried dbVer is :", dbVer)
-	checkUpgradeDatabase(dbVer)
+    checkUpgradeDatabase(dbVer)
 
-	log.WithFields(log.Fields{"Addr": addr, "DBName": dbname}).Info("MariaDB OK.")
+    log.WithField("Database", dbFile).Info("SQLite OK.")
 
-	return nil
+    return nil
 }
+func verifyDB() error {
+    _, err := db.Exec(`
+        CREATE TABLE IF NOT EXISTS line (
+            line_id TEXT,
+            tg_id TEXT,
+            tg_title TEXT,
+            line_link TEXT,
+            auto_emoji INTEGER
+        )
+    `)
+    if err != nil {
+        return err
+    }
 
-func verifyDB(dsn *mysql.Config, dbname string) error {
-	err := db.Ping()
-	if err != nil {
-		log.Errorln("Error connecting to mariadb!! DSN: ", dsn.FormatDSN())
-		return err
-	}
+    _, err = db.Exec(`
+        CREATE TABLE IF NOT EXISTS properties (
+            name TEXT PRIMARY KEY,
+            value TEXT
+        )
+    `)
+    if err != nil {
+        return err
+    }
 
-	_, err = db.Exec("USE " + dbname)
-	if err != nil {
-		log.Infoln("Can't USE database!", err)
-		log.Infof("Database name:%s does not seem to exist, attempting to create.", dbname)
-		err2 := createMariadb(dsn, dbname)
-		if err2 != nil {
-			log.Errorln("Error creating mariadb database!! DSN:", dsn.FormatDSN())
-			return err2
-		}
-	}
-	return nil
+    _, err = db.Exec(`
+        CREATE TABLE IF NOT EXISTS stickers (
+            user_id INTEGER,
+            tg_id TEXT,
+            tg_title TEXT,
+            timestamp INTEGER
+        )
+    `)
+    if err != nil {
+        return err
+    }
+
+    var count int
+    db.QueryRow("SELECT COUNT(*) FROM properties WHERE name='DB_VER'").Scan(&count)
+
+    if count == 0 {
+        db.Exec("INSERT INTO properties(name,value) VALUES(?,?)",
+            "last_line_dedup_index", "-1")
+        db.Exec("INSERT INTO properties(name,value) VALUES(?,?)",
+            "DB_VER", DB_VER)
+
+        log.Infof("Initialized SQLite database with DB_VER=%s", DB_VER)
+    }
+
+    return nil
 }
 
 func checkUpgradeDatabase(queriedDbVer string) {
 	if queriedDbVer == "1" {
-		db.Exec("INSERT properties (name, value) VALUES (?, ?)", "last_line_dedup_index", "-1") //value is string!
+		db.Exec("INSERT INTO properties (name, value) VALUES (?, ?)", "last_line_dedup_index", "-1") //value is string!
 		db.Exec("UPDATE properties SET value=? WHERE name=?", "2", "DB_VER")
 		log.Info("Upgraded DB_VER from 1 to 2")
 	}
-}
-
-func createMariadb(dsn *mysql.Config, dbname string) error {
-	_, err := db.Exec("CREATE DATABASE " + dbname + " CHARACTER SET utf8mb4")
-	if err != nil {
-		log.Errorln("Error CREATE DATABASE!", err)
-		return err
-	}
-	db.Close()
-	dsn.DBName = dbname
-	db, _ = sql.Open("mysql", dsn.FormatDSN())
-	db.Exec("CREATE TABLE line (line_id VARCHAR(128), tg_id VARCHAR(128), tg_title VARCHAR(255), line_link VARCHAR(512), auto_emoji BOOL)")
-	db.Exec("CREATE TABLE properties (name VARCHAR(128) PRIMARY KEY, value VARCHAR(128))")
-	db.Exec("CREATE TABLE stickers (user_id BIGINT, tg_id VARCHAR(128), tg_title VARCHAR(255), timestamp BIGINT)")
-	db.Exec("INSERT properties (name, value) VALUES (?, ?)", "last_line_dedup_index", "-1")
-	db.Exec("INSERT properties (name, value) VALUES (?, ?)", "DB_VER", DB_VER)
-	log.Infoln("Mariadb initialized with DB_VER :", DB_VER)
-	return nil
 }
 
 func insertLineS(lineID string, lineLink string, tgID string, tgTitle string, aE bool) {
@@ -156,7 +153,7 @@ func insertLineS(lineID string, lineLink string, tgID string, tgTitle string, aE
 		log.Warn("Empty entry to insert line s")
 		return
 	}
-	_, err := db.Exec("INSERT line (line_id, line_link, tg_id, tg_title, auto_emoji) VALUES (?, ?, ?, ?, ?)",
+	_, err := db.Exec("INSERT INTO line (line_id, line_link, tg_id, tg_title, auto_emoji) VALUES (?, ?, ?, ?, ?)",
 		lineID, lineLink, tgID, tgTitle, aE)
 
 	if err != nil {
@@ -174,7 +171,7 @@ func insertUserS(uid int64, tgID string, tgTitle string, timestamp int64) {
 		log.Warn("Empty entry to insert user s")
 		return
 	}
-	_, err := db.Exec("INSERT stickers (user_id, tg_id, tg_title, timestamp) VALUES (?, ?, ?, ?)",
+	_, err := db.Exec("INSERT INTO stickers (user_id, tg_id, tg_title, timestamp) VALUES (?, ?, ?, ?)",
 		uid, tgID, tgTitle, timestamp)
 
 	if err != nil {

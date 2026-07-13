@@ -169,8 +169,9 @@ func initWorkspace(b *tele.Bot) {
 	}
 
 	if msbconf.DbAddr != "" {
-		dbName := botName + "_db"
-		err = initDB(dbName)
+		//dbName := botName + "_db"
+	dbName := msbconf.DbAddr	
+	err = initDB(dbName)
 		if err != nil {
 			log.Fatalln("Error initializing database!!", err)
 		}

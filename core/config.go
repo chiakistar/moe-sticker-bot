@@ -12,9 +12,7 @@ type ConfigTemplate struct {
 	WebappUrl           string
 	WebappApiListenAddr string
 	WebappDataDir       string
-	DbAddr              string
-	DbUser              string
-	DbPass              string
+	dbFile              string
 	// BotApiAddr       string
 	// BotApiDir        string
 	// WebhookPublicAddr string

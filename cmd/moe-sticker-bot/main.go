@@ -26,9 +26,7 @@ func parseCmdLine() core.ConfigTemplate {
 	var webappUrl = flag.String("webapp_url", "", "Public HTTPS URL to WebApp, in unset, webapp will be disabled.")
 	var WebappApiListenAddr = flag.String("webapp_listen_addr", "", "Webapp API server listen address(IP:PORT)")
 	var webappDataDir = flag.String("webapp_data_dir", "", "Where to put webapp data to share with ReactApp ")
-	var dbAddr = flag.String("db_addr", "", "mariadb(mysql) address, if unset, database will be disabled.")
-	var dbUser = flag.String("db_user", "", "mariadb(mysql) usernmae")
-	var dbPass = flag.String("db_pass", "", "mariadb(mysql) password")
+	var dbFile = flag.String("db_addr", "", "sqlite database file path, if unset, database will be disabled.")
 	var logLevel = flag.String("log_level", "debug", "Log level")
 	// var botApiAddr = flag.String("botapi_addr", "", "Local Bot API Server Address")
 	// var botApiDir = flag.String("botapi_dir", "", "Local Bot API Working directory")
@@ -54,9 +52,7 @@ func parseCmdLine() core.ConfigTemplate {
 		log.Fatal("Bad bot token!")
 	}
 
-	conf.DbAddr = *dbAddr
-	conf.DbUser = *dbUser
-	conf.DbPass = *dbPass
+	conf.dbFile = *dbFile
 
 	conf.WebappUrl = *webappUrl
 	conf.WebappDataDir = *webappDataDir
