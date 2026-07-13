@@ -168,9 +168,9 @@ func initWorkspace(b *tele.Bot) {
 		log.Fatal(err)
 	}
 
-	if msbconf.DbAddr != "" {
+	if msbconf.DbFile != "" {
 		//dbName := botName + "_db"
-	dbName := msbconf.DbAddr	
+	dbName := msbconf.DbFile	
 	err = initDB(dbName)
 		if err != nil {
 			log.Fatalln("Error initializing database!!", err)
@@ -186,7 +186,7 @@ func initGoCron() {
 	time.Sleep(15 * time.Second)
 	cronScheduler = gocron.NewScheduler(time.UTC)
 	cronScheduler.Every(1).Days().Do(purgeOutdatedStorageData)
-	if msbconf.DbAddr != "" {
+	if msbconf.DbFile != "" {
 		cronScheduler.Every(1).Weeks().Do(curateDatabase)
 	}
 	cronScheduler.StartBlocking()
